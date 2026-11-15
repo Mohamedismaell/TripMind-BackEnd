@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
-using TripMind.Application.Services;
-
+using TripMind.Application.Interfaces;
 namespace TripMind.Infrastructure.Email
 {
     public sealed class StubEmailSender : IEmailSender

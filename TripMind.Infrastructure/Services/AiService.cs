@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -8,6 +9,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using TripMind.Application.DTOs.Ai;
 using TripMind.Application.Interfaces;
+using TripMind.Infrastructure.options;
 
 namespace TripMind.Infrastructure.Services
 {
@@ -23,17 +25,30 @@ namespace TripMind.Infrastructure.Services
         private static readonly JsonSerializerOptions JsonOpts =
             new() { PropertyNameCaseInsensitive = true };
 
-        public AiService(HttpClient http, IConfiguration config, ILogger<AiService> logger)
+        public AiService(HttpClient http, IOptions<AiOptions> options, ILogger<AiService> logger)
         {
+            var aiOptions = options.Value;
+
             _http = http;
             _logger = logger;
             _http.Timeout = TimeSpan.FromSeconds(120);
-            _plannerUrl = config["Ai:PlannerUrl"] ?? throw new InvalidOperationException("Ai:PlannerUrl not configured.");
-            _chatUrl = config["Ai:ChatUrl"] ?? throw new InvalidOperationException("Ai:ChatUrl not configured.");
-            _editUrl = config["Ai:EditUrl"] ?? throw new InvalidOperationException("Ai:EditUrl not configured.");
-            _recommendBase = config["Ai:RecommendBase"] ?? throw new InvalidOperationException("Ai:RecommendBase not configured.");
-        }
 
+            //_plannerUrl = config["Ai:PlannerUrl"] ?? throw new InvalidOperationException("Ai:PlannerUrl not configured.");
+            //_chatUrl = config["Ai:ChatUrl"] ?? throw new InvalidOperationException("Ai:ChatUrl not configured.");
+            //_editUrl = config["Ai:EditUrl"] ?? throw new InvalidOperationException("Ai:EditUrl not configured.");
+            //_recommendBase = config["Ai:RecommendBase"] ?? throw new InvalidOperationException("Ai:RecommendBase not configured.");
+            _plannerUrl = aiOptions.PlannerUrl;
+            _chatUrl = aiOptions.ChatUrl;
+            _editUrl = aiOptions.EditUrl;
+            _recommendBase = aiOptions.RecommendBase;
+
+        }
+        //  "Ai": {
+        //  "PlannerUrl": "https://n8n-production-a9fd.up.railway.app/webhook/generate-plan",
+        //  "ChatUrl": "https://n8n-production-a9fd.up.railway.app/webhook/fbc7e8c3-aeff-4f28-8a51-a9f4522d2f99",
+        //  "EditUrl": "https://n8n-production-a9fd.up.railway.app/webhook-test/edit-plan",
+        //  "RecommendBase": "https://web-production-c11a.up.railway.app"
+        //},
         // -- Generate Plan -----------------------------------------------------
         public async Task<JsonElement> GeneratePlanAsync(GeneratePlanRequest req)
         {

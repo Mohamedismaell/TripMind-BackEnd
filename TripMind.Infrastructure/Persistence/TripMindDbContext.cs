@@ -4,10 +4,8 @@ using TripMind.Domain.Entities;
 
 namespace TripMind.Infrastructure.Persistence
 {
-    public sealed class TripMindDbContext : DbContext, IAppDbContext
+    public sealed class TripMindDbContext(DbContextOptions<TripMindDbContext> options) : DbContext(options), IAppDbContext
     {
-        public TripMindDbContext(DbContextOptions<TripMindDbContext> options) : base(options) { }
-
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<Trip> Trips { get; set; } = null!;
         public DbSet<UserInterest> UserInterests { get; set; } = null!;
@@ -17,9 +15,9 @@ namespace TripMind.Infrastructure.Persistence
         public DbSet<FavoriteTrip> FavoriteTrips { get; set; } = null!;
         public DbSet<TripReview> TripReviews { get; set; } = null!;
 
-        DbSet<User> IAppDbContext.Users => Users;
-        DbSet<AuditLog> IAppDbContext.AuditLogs => AuditLogs;
-        DbSet<RefreshToken> IAppDbContext.RefreshTokens => RefreshTokens;
+        //DbSet<User> IAppDbContext.Users => Users;
+        //DbSet<AuditLog> IAppDbContext.AuditLogs => AuditLogs;
+        //DbSet<RefreshToken> IAppDbContext.RefreshTokens => RefreshTokens;
 
         protected override void OnModelCreating(ModelBuilder m)
         {

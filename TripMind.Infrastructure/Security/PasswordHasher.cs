@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Identity;
+using TripMind.Application.Interfaces;
 using TripMind.Application.Services;
 
 namespace TripMind.Infrastructure.Security

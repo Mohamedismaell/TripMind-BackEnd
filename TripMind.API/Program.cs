@@ -17,6 +17,7 @@ using TripMind.Infrastructure.Persistence;
 using TripMind.Infrastructure.Security;
 using System.Linq;
 using TripMind.Infrastructure.BackgroundJobs;
+using TripMind.Infrastructure.options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,11 +38,21 @@ builder.Services.AddScoped<IJwtProvider, JwtProvider>();
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
 
 
-builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IRegistrationService, RegistrationService>();
+builder.Services.AddScoped<ILoginService, LoginService>();
+builder.Services.AddScoped<ITwoFactorService, TwoFactorService>();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
+builder.Services.AddScoped<IPasswordService, PasswordService>();
+builder.Services.AddScoped<ISocialLoginService, SocialLoginService>();
+builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddScoped<IEmailDomainPolicy, EmailDomainPolicy>();
+builder.Services.AddScoped<IOtpService, OtpService>();
+builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITripService, TripService>();
 builder.Services.AddScoped<IFavoritesService, FavoritesService>();
 builder.Services.AddScoped<IImageService, CloudinaryImageService>();
+builder.Services.Configure<AiOptions>(builder.Configuration.GetSection("Ai"));
 builder.Services.AddHttpClient<IAiService, AiService>();
 builder.Services.AddHostedService<UnverifiedUserCleanupJob>();
 
@@ -99,7 +110,7 @@ builder.Services.AddControllers()
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? Array.Empty<string>();
-
+builder.Services.Configure<EmailPolicyOptions>(builder.Configuration.GetSection("EmailPolicy"));
 builder.Services.AddCors(opt =>
     opt.AddDefaultPolicy(policy =>
         policy

@@ -7,7 +7,6 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using TripMind.Application.DTOs.Auth;
 using TripMind.Application.Interfaces;
-using TripMind.Application.Services;
 using TripMind.API.Extensions;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,12 +17,32 @@ namespace TripMind.API.Controllers
     [Produces("application/json")]
     public sealed class AuthController : ControllerBase
     {
-        private readonly IAuthService _auth;
+        private readonly IRegistrationService _registration;
+        private readonly ILoginService _login;
+        private readonly ITwoFactorService _twoFactor;
+        private readonly IEmailVerificationService _emailVerification;
+        private readonly IPasswordService _password;
+        private readonly ISocialLoginService _social;
+        private readonly ITokenService _tokens;
         private readonly IAppDbContext _db;
 
-        public AuthController(IAuthService auth, IAppDbContext db)
+        public AuthController(
+            IRegistrationService registration,
+            ILoginService login,
+            ITwoFactorService twoFactor,
+            IEmailVerificationService emailVerification,
+            IPasswordService password,
+            ISocialLoginService social,
+            ITokenService tokens,
+            IAppDbContext db)
         {
-            _auth = auth;
+            _registration = registration;
+            _login = login;
+            _twoFactor = twoFactor;
+            _emailVerification = emailVerification;
+            _password = password;
+            _social = social;
+            _tokens = tokens;
             _db = db;
         }
 
@@ -31,7 +50,7 @@ namespace TripMind.API.Controllers
         [ProducesResponseType(typeof(MessageResponse), 201)]
         public async Task<IActionResult> Register([FromBody] RegisterRequest req)
         {
-            var result = await _auth.RegisterAsync(req, Ip());
+            var result = await _registration.RegisterAsync(req, Ip());
             return StatusCode(201, result);
         }
 
@@ -39,49 +58,49 @@ namespace TripMind.API.Controllers
         [ProducesResponseType(typeof(TokenResponse), 200)]
         [ProducesResponseType(typeof(PendingTwoFactorResponse), 200)]
         public async Task<IActionResult> Login([FromBody] LoginRequest req) =>
-            Ok(await _auth.LoginAsync(req, Ip()));
+            Ok(await _login.LoginAsync(req, Ip()));
 
         [HttpPost("login/verify")]
         [ProducesResponseType(typeof(TokenResponse), 200)]
         public async Task<IActionResult> VerifyLoginOtp([FromBody] LoginOtpRequest req) =>
-            Ok(await _auth.VerifyLoginOtpAsync(req, Ip()));
+            Ok(await _login.VerifyLoginOtpAsync(req, Ip()));
 
         [HttpPost("login/resend-otp")]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ResendLoginOtp([FromBody] ResendEmailOtpRequest req) =>
-            Ok(await _auth.ResendTwoFactorOtpAsync(req.Email, Ip()));
+            Ok(await _twoFactor.ResendTwoFactorOtpAsync(req.Email, Ip()));
 
         [HttpPost("email/verify")]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailOtpRequest req) =>
-            Ok(await _auth.VerifyEmailAsync(req, Ip()));
+            Ok(await _emailVerification.VerifyEmailAsync(req, Ip()));
 
         [HttpPost("email/resend-otp")]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ResendEmailOtp([FromBody] ResendEmailOtpRequest req) =>
-            Ok(await _auth.ResendEmailOtpAsync(req, Ip()));
+            Ok(await _emailVerification.ResendEmailOtpAsync(req, Ip()));
 
         [HttpPost("google")]
         [ProducesResponseType(typeof(TokenResponse), 200)]
         public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest req) =>
-            Ok(await _auth.GoogleLoginAsync(req.IdToken, Ip()));
+            Ok(await _social.GoogleLoginAsync(req.IdToken, Ip()));
 
         [HttpPost("facebook")]
         [ProducesResponseType(typeof(TokenResponse), 200)]
         public async Task<IActionResult> FacebookLogin([FromBody] FacebookLoginRequest req) =>
-            Ok(await _auth.FacebookLoginAsync(req.AccessToken, Ip()));
+            Ok(await _social.FacebookLoginAsync(req.AccessToken, Ip()));
 
         [HttpPost("refresh")]
         [ProducesResponseType(typeof(TokenResponse), 200)]
         public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest req) =>
-            Ok(await _auth.RefreshAsync(req.RefreshToken, Ip()));
+            Ok(await _tokens.RefreshAsync(req.RefreshToken, Ip()));
 
         [HttpPost("logout")]
         [Authorize]
         [ProducesResponseType(204)]
         public async Task<IActionResult> Logout([FromBody] LogoutRequest req)
         {
-            await _auth.LogoutAsync(Me(), req.RefreshToken);
+            await _tokens.LogoutAsync(Me(), req.RefreshToken);
             return NoContent();
         }
 
@@ -90,7 +109,7 @@ namespace TripMind.API.Controllers
         [ProducesResponseType(204)]
         public async Task<IActionResult> Revoke([FromBody] RefreshTokenRequest req)
         {
-            await _auth.RevokeAsync(req.RefreshToken);
+            await _tokens.RevokeAsync(req.RefreshToken);
             return NoContent();
         }
 
@@ -98,25 +117,25 @@ namespace TripMind.API.Controllers
         [ProducesResponseType(200)]
         public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest req)
         {
-            await _auth.SendPasswordResetOtpAsync(req, Ip());
+            await _password.SendPasswordResetOtpAsync(req, Ip());
             return Ok(new { message = "If that email is registered, a verification code has been sent." });
         }
 
         [HttpPost("password/verifyotp")]
         [ProducesResponseType(typeof(VerifyOtpResponse), 200)]
         public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest req) =>
-            Ok(await _auth.VerifyOtpAsync(req, Ip()));
+            Ok(await _password.VerifyOtpAsync(req, Ip()));
 
         [HttpPost("password/reset")]
         [ProducesResponseType(typeof(ResetPasswordResponse), 200)]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req) =>
-            Ok(await _auth.ResetPasswordAsync(req, Ip()));
+            Ok(await _password.ResetPasswordAsync(req, Ip()));
 
         [HttpPost("password/resend-otp")]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ResendPasswordOtp([FromBody] ForgotPasswordRequest req)
         {
-            await _auth.SendPasswordResetOtpAsync(req, Ip());
+            await _password.SendPasswordResetOtpAsync(req, Ip());
             return Ok(new MessageResponse { Message = "If that email is registered, a new OTP has been sent." });
         }
 
@@ -124,31 +143,31 @@ namespace TripMind.API.Controllers
         [Authorize]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req) =>
-            Ok(await _auth.ChangePasswordAsync(Me(), req, Ip()));
+            Ok(await _password.ChangePasswordAsync(Me(), req, Ip()));
 
         [HttpPost("2fa/initiate")]
         [Authorize]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> InitiateTwoFactor() =>
-            Ok(await _auth.InitiateTwoFactorAsync(Me(), Ip()));
+            Ok(await _twoFactor.InitiateTwoFactorAsync(Me(), Ip()));
 
         [HttpPost("2fa/confirm")]
         [Authorize]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ConfirmTwoFactor([FromBody] TwoFactorConfirmRequest req) =>
-            Ok(await _auth.ConfirmTwoFactorAsync(Me(), req, Ip()));
+            Ok(await _twoFactor.ConfirmTwoFactorAsync(Me(), req, Ip()));
 
         [HttpPost("2fa/disable")]
         [Authorize]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> DisableTwoFactor([FromBody] TwoFactorDisableRequest req) =>
-            Ok(await _auth.DisableTwoFactorAsync(Me(), req, Ip()));
+            Ok(await _twoFactor.DisableTwoFactorAsync(Me(), req, Ip()));
 
         [HttpPost("2fa/resend-otp")]
         [Authorize]
         [ProducesResponseType(typeof(MessageResponse), 200)]
         public async Task<IActionResult> ResendTwoFactorOtp() =>
-            Ok(await _auth.ResendTwoFactorOtpAsync(User.FindFirstValue(ClaimTypes.Email)!, Ip()));
+            Ok(await _twoFactor.ResendTwoFactorOtpAsync(User.FindFirstValue(ClaimTypes.Email)!, Ip()));
 
         [HttpGet("me")]
         [Authorize]

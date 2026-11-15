@@ -5,8 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using TripMind.Application.Services;
-
+using TripMind.Application.Interfaces;
 namespace TripMind.Infrastructure.Email
 {
     public sealed class BrevoEmailSender : IEmailSender

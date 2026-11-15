@@ -1,67 +1,112 @@
-﻿using System;
-using System.Net;
-using System.Text.Json;
+﻿
+using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using TripMind.Application.Services;
-using System.ComponentModel.DataAnnotations;
+using TripMind.Application.Exceptions;
 
 namespace TripMind.API.Middleware
 {
-    public sealed class ExceptionMiddleware
+    public sealed class ExceptionMiddleware(
+        RequestDelegate next,
+        ILogger<ExceptionMiddleware> logger)
     {
-        private readonly RequestDelegate _next;
-        private readonly ILogger<ExceptionMiddleware> _logger;
-
-        public ExceptionMiddleware(RequestDelegate next, ILogger<ExceptionMiddleware> logger)
-        {
-            _next = next; _logger = logger;
-        }
+        private readonly RequestDelegate _next = next;
+        private readonly ILogger<ExceptionMiddleware> _logger = logger;
 
         public async Task InvokeAsync(HttpContext ctx)
         {
-            try { await _next(ctx); }
-            catch (Exception ex) { await HandleAsync(ctx, ex); }
+            try
+            {
+                await _next(ctx);
+            }
+            catch (Exception ex)
+            {
+                await HandleAsync(ctx, ex);
+            }
         }
 
         private async Task HandleAsync(HttpContext ctx, Exception ex)
         {
+            // 1. Check whether the response has already started.
             if (ctx.Response.HasStarted)
+            {
+                _logger.LogError(
+                    ex,
+                    "An exception occurred after the response started.");
+
                 return;
+            }
 
-            var env = ctx.RequestServices.GetRequiredService<IWebHostEnvironment>();
+            int statusCode;
+            string title;
+            string errorCode;
+            string detail;
 
-            (int status, string title) = ex switch
+            // 2. Handle known application exceptions.
+            if (ex is AppException appEx)
             {
-                AuthException => (401, "Authentication failed."),
-                KeyNotFoundException => (404, "Resource not found."),
-                InvalidOperationException => (400, "Invalid operation."),
-                UnauthorizedAccessException => (403, "Access denied."),
-                ValidationException => (400, "Validation failed."),
-                _ => (500, "An unexpected error occurred.")
+                statusCode = appEx.StatusCode;
+                title = GetTitle(statusCode);
+                errorCode = appEx.ErrorCode;
+                detail = appEx.Message;
+
+                _logger.LogWarning(
+                    "Application error {ErrorCode} on {Method} {Path}",
+                    errorCode,
+                    ctx.Request.Method,
+                    ctx.Request.Path);
+            }
+            else
+            {
+                // 3. Handle unexpected exceptions.
+                statusCode = StatusCodes.Status500InternalServerError;
+                title = "An unexpected error occurred.";
+                errorCode = "INTERNAL_SERVER_ERROR";
+                detail = "An internal server error occurred.";
+
+                _logger.LogError(
+                    ex,
+                    "Unhandled exception on {Method} {Path}",
+                    ctx.Request.Method,
+                    ctx.Request.Path);
+            }
+
+            // 4. Build a standardized Problem Details response.
+            var problem = new ProblemDetails
+            {
+                Type = $"https://httpstatuses.com/{statusCode}",
+                Title = title,
+                Status = statusCode,
+                Detail = detail,
+                Instance = ctx.Request.Path
             };
 
-            if (status == 500)
-                _logger.LogError(ex, "{Method} {Path}", ctx.Request.Method, ctx.Request.Path);
+            problem.Extensions["errorCode"] = errorCode;
+            problem.Extensions["traceId"] = ctx.TraceIdentifier;
 
+            // 5. Send the response to the client.
+            ctx.Response.Clear();
+            ctx.Response.StatusCode = statusCode;
             ctx.Response.ContentType = "application/problem+json";
-            ctx.Response.StatusCode = status;
 
-            var response = new
+            await ctx.Response.WriteAsJsonAsync(
+                problem);
+        }
+
+        private static string GetTitle(int statusCode)
+        {
+            return statusCode switch
             {
-                type = $"https://httpstatuses.com/{status}",
-                title,
-                status,
-                detail = env.IsDevelopment() ? ex.ToString() : "An internal error occurred.",
-                instance = ctx.Request.Path.Value,
-                traceId = ctx.TraceIdentifier
+                400 => "Bad request.",
+                401 => "Authentication required.",
+                403 => "Access denied.",
+                404 => "Resource not found.",
+                409 => "Conflict.",
+                503 => "Service unavailable.",
+                _ => "Application error."
             };
-
-            await ctx.Response.WriteAsync(JsonSerializer.Serialize(
-                response,
-                new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
-            ));
         }
     }
 }
